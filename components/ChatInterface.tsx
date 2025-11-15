@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Message, MessageRole, Resource } from '../types';
+import { Message, MessageRole } from '../types';
 import { retrieveResources } from '../services/ragService';
 import { generateGeminiResponse } from '../services/geminiService';
 import { ResourceCard } from './ResourceCard';
@@ -16,6 +16,7 @@ export const ChatInterface: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -25,11 +26,22 @@ export const ChatInterface: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  // Cleanup speech on unmount
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
 
     const userText = inputValue.trim();
     setInputValue('');
+    
+    // Cancel any ongoing speech when user sends a message
+    window.speechSynthesis.cancel();
+    setSpeakingMessageId(null);
 
     // Add User Message
     const userMessage: Message = {
@@ -115,31 +127,97 @@ export const ChatInterface: React.FC = () => {
     recognition.start();
   };
 
+  const handleSpeak = (text: string, messageId: string) => {
+    if (speakingMessageId === messageId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+    
+    setSpeakingMessageId(messageId);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleClearChat = () => {
+    if (window.confirm("Start a new conversation? This will clear the current history.")) {
+      window.speechSynthesis.cancel();
+      setMessages([{
+        id: Date.now().toString(),
+        role: MessageRole.Model,
+        content: "I'm ready for a fresh start. What can I help you with?",
+        timestamp: new Date()
+      }]);
+      setSpeakingMessageId(null);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-[600px] md:h-[700px]">
+    <div className="flex flex-col h-[600px] md:h-[700px] relative">
+      {/* Toolbar */}
+      <div className="absolute top-4 right-6 z-10">
+        <button 
+          onClick={handleClearChat}
+          className="text-xs font-medium text-slate-400 hover:text-red-500 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200 shadow-sm transition-colors flex items-center gap-1"
+          title="Clear conversation history"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Reset Chat
+        </button>
+      </div>
+
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50 scroll-smooth">
         {messages.map((msg) => (
           <div 
             key={msg.id} 
             className={`flex flex-col ${msg.role === MessageRole.User ? 'items-end' : 'items-start'}`}
           >
-            <div 
-              className={`max-w-[85%] md:max-w-[75%] p-4 rounded-2xl text-base leading-relaxed shadow-sm whitespace-pre-wrap
-                ${msg.role === MessageRole.User 
-                  ? 'bg-indigo-600 text-white rounded-br-none' 
-                  : msg.role === MessageRole.System 
-                    ? 'bg-red-50 text-red-800 border border-red-200'
-                    : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
-                }
-              `}
-            >
-              {msg.content}
+            <div className="flex gap-2 items-end max-w-[90%] md:max-w-[80%]">
+              {/* Message Bubble */}
+              <div 
+                className={`p-4 rounded-2xl text-base leading-relaxed shadow-sm whitespace-pre-wrap relative group
+                  ${msg.role === MessageRole.User 
+                    ? 'bg-indigo-600 text-white rounded-br-none' 
+                    : msg.role === MessageRole.System 
+                      ? 'bg-red-50 text-red-800 border border-red-200'
+                      : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                  }
+                `}
+              >
+                {msg.content}
+                
+                {/* TTS Button for Assistant Messages */}
+                {msg.role === MessageRole.Model && (
+                  <button 
+                    onClick={() => handleSpeak(msg.content, msg.id)}
+                    className={`absolute -right-10 bottom-0 p-2 rounded-full bg-white border border-slate-100 shadow-sm text-slate-400 hover:text-indigo-600 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 ${speakingMessageId === msg.id ? 'opacity-100 text-indigo-600 ring-2 ring-indigo-100' : ''}`}
+                    aria-label={speakingMessageId === msg.id ? "Stop reading" : "Read aloud"}
+                    title={speakingMessageId === msg.id ? "Stop reading" : "Read aloud"}
+                  >
+                    {speakingMessageId === msg.id ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 animate-pulse" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* RAG Resources Display */}
             {msg.relatedResources && msg.relatedResources.length > 0 && (
-              <div className="mt-3 w-full max-w-[85%] md:max-w-[75%]">
+              <div className="mt-3 w-full max-w-[90%] md:max-w-[80%]">
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
                   Recommended Resources
                 </p>
@@ -158,11 +236,13 @@ export const ChatInterface: React.FC = () => {
         ))}
         
         {isLoading && (
-          <div className="flex items-center gap-2 text-slate-500 p-4 animate-pulse">
-            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-            <span className="text-sm font-medium">Thinking...</span>
+          <div className="flex items-center gap-2 text-slate-500 p-4 animate-pulse bg-slate-100/50 rounded-xl w-fit">
+            <div className="flex gap-1">
+              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+            <span className="text-sm font-medium">Finding resources...</span>
           </div>
         )}
         <div ref={messagesEndRef} />
