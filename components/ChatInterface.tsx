@@ -115,6 +115,7 @@ export const ChatInterface: React.FC = () => {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -125,6 +126,9 @@ export const ChatInterface: React.FC = () => {
   useEffect(() => {
     return () => {
       window.speechSynthesis.cancel();
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
     };
   }, []);
 
@@ -197,7 +201,6 @@ export const ChatInterface: React.FC = () => {
   };
 
   const toggleVoiceInput = () => {
-    // Basic browser SpeechRecognition support
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
@@ -206,6 +209,7 @@ export const ChatInterface: React.FC = () => {
     }
 
     if (isListening) {
+      recognitionRef.current?.stop();
       setIsListening(false);
       return;
     }
@@ -229,6 +233,7 @@ export const ChatInterface: React.FC = () => {
 
     recognition.onend = () => setIsListening(false);
 
+    recognitionRef.current = recognition;
     recognition.start();
   };
 
@@ -353,24 +358,28 @@ export const ChatInterface: React.FC = () => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about tools, accommodations, or strategies..."
-              className="w-full pl-4 pr-12 py-3 bg-slate-100 text-slate-900 placeholder-slate-500 border-2 border-transparent focus:border-indigo-500 rounded-2xl resize-none focus:outline-none focus:ring-0 transition-all min-h-[56px] max-h-32"
+              placeholder={isListening ? "Listening... (speak now)" : "Ask about tools, accommodations, or strategies..."}
+              className={`w-full pl-4 pr-12 py-3 bg-slate-100 text-slate-900 placeholder-slate-500 border-2 border-transparent focus:border-indigo-500 rounded-2xl resize-none focus:outline-none focus:ring-0 transition-all min-h-[56px] max-h-32 ${isListening ? 'border-red-200 bg-red-50 placeholder-red-400' : ''}`}
               rows={1}
-              style={{ minHeight: '56px' }} // Ensure touch target size
+              style={{ minHeight: '56px' }}
             />
             {/* Voice Input Button */}
             <button
               onClick={toggleVoiceInput}
               className={`absolute right-2 bottom-2 p-2 rounded-xl transition-colors ${
                 isListening 
-                  ? 'bg-red-100 text-red-600 animate-pulse' 
+                  ? 'bg-red-100 text-red-600 animate-pulse ring-2 ring-red-200' 
                   : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
               }`}
               aria-label={isListening ? "Stop listening" : "Start voice input"}
-              title="Voice Input"
+              title={isListening ? "Stop listening" : "Start voice input"}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                {isListening ? (
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                ) : (
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                )}
               </svg>
             </button>
           </div>
