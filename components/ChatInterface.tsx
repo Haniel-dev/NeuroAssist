@@ -4,6 +4,101 @@ import { retrieveResources } from '../services/ragService';
 import { generateGeminiResponse } from '../services/geminiService';
 import { ResourceCard } from './ResourceCard';
 
+const ResourceGroupDisplay: React.FC<{ resources: Resource[] }> = ({ resources }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const INITIAL_LIMIT = 3;
+
+  if (!resources || resources.length === 0) return null;
+
+  // Group resources by category
+  const grouped = resources.reduce((acc, res) => {
+    const cat = res.category;
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(res);
+    return acc;
+  }, {} as Record<string, Resource[]>);
+
+  const categories = Object.keys(grouped);
+  const totalCount = resources.length;
+  const showToggle = totalCount > INITIAL_LIMIT;
+  
+  let displayedCount = 0;
+
+  return (
+    <div className="mt-4 w-full max-w-[90%] md:max-w-[80%] bg-white/60 rounded-xl border border-slate-200/80 p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+            Found Resources
+          </p>
+        </div>
+        {showToggle && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-full transition-colors uppercase tracking-wide flex items-center gap-1"
+          >
+            {isExpanded ? (
+              <>
+                Show Less
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+              </>
+            ) : (
+              <>
+                See All ({totalCount})
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-5">
+        {categories.map((category) => {
+          const items = grouped[category];
+          let itemsToShow = items;
+
+          if (!isExpanded) {
+            const remainingSlots = INITIAL_LIMIT - displayedCount;
+            if (remainingSlots <= 0) return null;
+            itemsToShow = items.slice(0, remainingSlots);
+          }
+
+          displayedCount += itemsToShow.length;
+
+          return (
+            <div key={category} className="space-y-2 animate-in fade-in duration-300">
+              <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                {category}
+              </h5>
+              <div className="grid gap-2">
+                {itemsToShow.map((resource) => (
+                  <ResourceCard key={resource.id} resource={resource} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      
+      {showToggle && !isExpanded && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="w-full mt-2 py-2 text-xs text-slate-400 hover:text-indigo-600 transition-colors text-center border-t border-dashed border-slate-200"
+        >
+          + {totalCount - INITIAL_LIMIT} more resources hidden
+        </button>
+      )}
+    </div>
+  );
+};
+
 export const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -227,16 +322,7 @@ export const ChatInterface: React.FC = () => {
 
             {/* RAG Resources Display */}
             {msg.relatedResources && msg.relatedResources.length > 0 && (
-              <div className="mt-3 w-full max-w-[90%] md:max-w-[80%]">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                  Recommended Resources
-                </p>
-                <div className="grid gap-2">
-                  {msg.relatedResources.map(resource => (
-                    <ResourceCard key={resource.id} resource={resource} />
-                  ))}
-                </div>
-              </div>
+              <ResourceGroupDisplay resources={msg.relatedResources} />
             )}
 
             <span className="text-xs text-slate-400 mt-1 px-1">

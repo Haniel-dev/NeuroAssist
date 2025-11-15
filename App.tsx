@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChatInterface } from './components/ChatInterface';
+import { AboutModal } from './components/AboutModal';
 
 const App: React.FC = () => {
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       {/* Accessible Header */}
@@ -18,6 +21,18 @@ const App: React.FC = () => {
               <p className="text-xs text-slate-500 font-medium">AI-Powered Support Assistant</p>
             </div>
           </div>
+          
+          {/* About Button */}
+          <button 
+            onClick={() => setIsAboutOpen(true)}
+            className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-label="About NeuroResource"
+            title="About NeuroResource"
+          >
+             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+             </svg>
+          </button>
         </div>
       </header>
 
@@ -32,6 +47,9 @@ const App: React.FC = () => {
       <footer className="py-6 text-center text-slate-400 text-sm">
         <p>© 2024 NeuroResource. Designed for accessibility.</p>
       </footer>
+
+      {/* About Modal */}
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </div>
   );
 };
