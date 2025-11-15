@@ -8,7 +8,7 @@ export interface Resource {
   id: string;
   title: string;
   description: string;
-  category: 'Sensory' | 'Executive Function' | 'Social' | 'Workplace' | 'Education' | 'Mental Health';
+  category: 'Sensory' | 'Executive Function' | 'Social' | 'Workplace' | 'Education' | 'Mental Health' | 'Web Resource' | 'Academic/Health';
   url: string;
   tags: string[];
 }

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Message, MessageRole } from '../types';
+import { Message, MessageRole, Resource } from '../types';
 import { retrieveResources } from '../services/ragService';
 import { generateGeminiResponse } from '../services/geminiService';
 import { ResourceCard } from './ResourceCard';
@@ -9,7 +9,7 @@ export const ChatInterface: React.FC = () => {
     {
       id: 'welcome',
       role: MessageRole.Model,
-      content: "Hi! I'm your NeuroResource assistant. I can help you find tools for executive function, sensory processing, workplace accommodations, and more. What are you looking for today?",
+      content: "Hi! I'm your NeuroResource assistant. I can help you find tools for executive function, sensory processing, and I can now search the web for health and academic resources. What are you looking for today?",
       timestamp: new Date()
     }
   ]);
@@ -55,18 +55,28 @@ export const ChatInterface: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 1. RAG Retrieval Step
-      const relevantResources = retrieveResources(userText);
+      // 1. Local RAG Retrieval Step (Curated DB)
+      const localResources = retrieveResources(userText);
 
-      // 2. Generation Step
-      const aiResponseText = await generateGeminiResponse(userText, relevantResources);
+      // 2. Generation Step (Includes Web Search Grounding)
+      const { text: aiResponseText, webResources } = await generateGeminiResponse(userText, localResources);
+
+      // 3. Combine Resources (Unique by URL)
+      const combinedResources: Resource[] = [...localResources];
+      
+      // Only add web resources if they don't duplicate local ones
+      webResources.forEach(webRes => {
+        if (!combinedResources.some(r => r.url === webRes.url)) {
+          combinedResources.push(webRes);
+        }
+      });
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: MessageRole.Model,
         content: aiResponseText,
         timestamp: new Date(),
-        relatedResources: relevantResources
+        relatedResources: combinedResources
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -149,7 +159,7 @@ export const ChatInterface: React.FC = () => {
       setMessages([{
         id: Date.now().toString(),
         role: MessageRole.Model,
-        content: "I'm ready for a fresh start. What can I help you with?",
+        content: "I'm ready for a fresh start. I can search for health, academic, and support resources for you. What's on your mind?",
         timestamp: new Date()
       }]);
       setSpeakingMessageId(null);
@@ -242,7 +252,7 @@ export const ChatInterface: React.FC = () => {
               <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
               <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
             </div>
-            <span className="text-sm font-medium">Finding resources...</span>
+            <span className="text-sm font-medium">Searching web & database...</span>
           </div>
         )}
         <div ref={messagesEndRef} />

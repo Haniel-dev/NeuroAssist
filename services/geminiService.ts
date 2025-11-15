@@ -7,7 +7,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SYSTEM_INSTRUCTION = `
 You are a compassionate, clear, and supportive assistant designed to help neurodivergent individuals (ADHD, Autism, Dyslexia, etc.). 
-Your goal is to answer questions and connect users with specific resources found in the provided context.
+Your goal is to answer questions and connect users with specific resources.
 
 Tone Guidelines:
 1. Direct and literal. Avoid metaphors unless explained.
@@ -15,21 +15,21 @@ Tone Guidelines:
 3. Be non-judgmental and validating.
 4. If the user mentions being overwhelmed, prioritize short, actionable steps.
 
-Instructions for RAG (Retrieval Augmented Generation):
-- You will be provided with a list of "Relevant Resources" in JSON format.
-- You MUST use these resources to answer the user's question if they are relevant.
-- When you mention a resource from the list, explicitly refer to it by name.
-- If no resources are relevant, answer from your general knowledge but mention you don't have specific database entries for it.
+Resource Guidelines:
+- You have access to Google Search to find real-time information.
+- PRIORITIZE resources from reputable health organizations (e.g., NIH, Mayo Clinic), academic institutions (.edu), and established neurodiversity advocacy groups.
+- When referencing a resource found via Google Search, ensure the link is provided in the "grounding chunks" so the UI can display it.
+- You may also be provided with "Internal Database Resources". Use them if relevant.
 `;
 
 export const generateGeminiResponse = async (
   userQuery: string,
   contextResources: Resource[]
-): Promise<string> => {
+): Promise<{ text: string; webResources: Resource[] }> => {
   try {
     const resourceContextString = contextResources.length > 0
-      ? `Here are some resources from our database that might help:\n${JSON.stringify(contextResources, null, 2)}`
-      : "No specific database resources matched this query.";
+      ? `INTERNAL DATABASE RESOURCES (Prioritize these if relevant):\n${JSON.stringify(contextResources, null, 2)}`
+      : "No internal database resources matched this query.";
 
     const prompt = `
     Context Information:
@@ -38,7 +38,8 @@ export const generateGeminiResponse = async (
     User Question:
     ${userQuery}
 
-    Please provide a helpful response based on the context and the user's needs.
+    Please search for additional reputable resources (health, academic, advocacy) if the internal database is insufficient.
+    Provide a helpful response based on the context, web search results, and the user's needs.
     `;
 
     const response = await ai.models.generateContent({
@@ -46,13 +47,38 @@ export const generateGeminiResponse = async (
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.3, // Lower temperature for more factual, less hallucinatory responses
+        temperature: 0.3,
+        tools: [{ googleSearch: {} }]
       }
     });
 
-    return response.text || "I'm sorry, I had trouble thinking of a response. Please try again.";
+    const text = response.text || "I'm sorry, I had trouble thinking of a response. Please try again.";
+    
+    // Extract web resources from grounding metadata
+    const webResources: Resource[] = [];
+    
+    if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+      response.candidates[0].groundingMetadata.groundingChunks.forEach((chunk: any, index: number) => {
+        if (chunk.web) {
+          webResources.push({
+            id: `web-${Date.now()}-${index}`,
+            title: chunk.web.title || 'Web Resource',
+            description: 'Resource found via Google Search',
+            category: 'Web Resource',
+            url: chunk.web.uri,
+            tags: ['web-search']
+          });
+        }
+      });
+    }
+
+    return { text, webResources };
+
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "I'm having trouble connecting to my brain right now. Please check your connection or try again later.";
+    return { 
+      text: "I'm having trouble connecting to my brain right now. Please check your connection or try again later.",
+      webResources: []
+    };
   }
 };

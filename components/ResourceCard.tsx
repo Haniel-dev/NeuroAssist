@@ -12,6 +12,9 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ resource }) => {
       case 'Executive Function': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Workplace': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       case 'Mental Health': return 'bg-rose-100 text-rose-800 border-rose-200';
+      case 'Education': return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'Web Resource': return 'bg-sky-100 text-sky-800 border-sky-200';
+      case 'Academic/Health': return 'bg-teal-100 text-teal-800 border-teal-200';
       default: return 'bg-slate-100 text-slate-800 border-slate-200';
     }
   };
@@ -24,7 +27,9 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ resource }) => {
         </span>
       </div>
       <h4 className="text-lg font-bold text-slate-900 mb-1">{resource.title}</h4>
-      <p className="text-slate-600 text-sm mb-3 leading-relaxed">{resource.description}</p>
+      {resource.description && (
+        <p className="text-slate-600 text-sm mb-3 leading-relaxed line-clamp-2">{resource.description}</p>
+      )}
       
       <div className="flex flex-wrap gap-2 mb-3">
         {resource.tags.map(tag => (
