@@ -1,0 +1,7 @@
+{
+  "name": "Copy of NeuroResource Assistant",
+  "description": "An accessible, AI-powered RAG chatbot designed to help neurodivergent individuals find relevant resources, tools, and strategies.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
